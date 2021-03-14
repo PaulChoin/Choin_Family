@@ -29,7 +29,7 @@ struct Data_Package {
   byte Steer;
   //byte j2PotY;
   //byte j2Button;
-  byte Lift;
+  byte Spin;
   //byte pot2;
   //byte tSwitch1;
   //byte tSwitch2;
@@ -61,8 +61,8 @@ void setup() {
   */
   // Set initial default values
   data.Speed = 0; // Values from 0 to 255. When Joystick is in resting position, the value is in the middle, or 127. We actually map the pot value from 0 to 1023 to 0 to 255 because that's one BYTE value
-  data.Steer = 127;
-  data.Lift = 50;
+  data.Steer = 0;
+  data.Spin = 0;
   /*data.j2PotY = 127;
   data.j1Button = 1;
   data.j2Button = 1;
@@ -78,10 +78,10 @@ void setup() {
 }
 void loop() {
   // Read all analog inputs and map them to one Byte value
-  data.Lift = map(analogRead(A1), 0, 1023, 0, 100); // Convert the analog read value from 0 to 1023 into a BYTE value from 0 to 255
+  data.Spin = map(analogRead(A3), 0, 1023, 0, 100); // Convert the analog read value from 0 to 1023 into a BYTE value from 0 to 255
   //data.j1PotY = map(analogRead(A0), 0, 1023, 0, 255);
   data.Steer = map(analogRead(A2), 0, 1023, 0, 255);
-  data.Speed = map(analogRead(A3), 0, 1023, 0, 255);
+  data.Speed = map(analogRead(A1), 0, 1023, 0, 255);
   //data.pot1 = map(analogRead(A7), 0, 1023, 0, 255);
   //data.pot2 = map(analogRead(A6), 0, 1023, 0, 255);
   // Read all digital inputs
