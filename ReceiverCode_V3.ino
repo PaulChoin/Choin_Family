@@ -13,17 +13,13 @@
 
 //call the Adafruit motor shield and define the motor ports
 Adafruit_MotorShield AFMS = Adafruit_MotorShield(); 
-Adafruit_DCMotor *LeftMotor = AFMS.getMotor(1);
-Adafruit_DCMotor *RightMotor = AFMS.getMotor(2);
-// Connect a stepper motor with 200 steps per revolution (1.8 degree step angle)
-// to motor port #2 (M3 and M4)
-Adafruit_StepperMotor *LiftMotor = AFMS.getStepper(200, 2);
-
+Adafruit_DCMotor *LeftMotor = AFMS.getMotor(3);
+Adafruit_DCMotor *RightMotor = AFMS.getMotor(4);
+Adafruit_DCMotor *BladeMotor = AFMS.getMotor(2);
 
 bool radioNumber = 0; // set as receiver
-int previous = 50; // define a variable to control lift motor
 
-RF24 radio(9, 10);   // nRF24L01 (CE, CSN)
+RF24 radio(18, 19);   // nRF24L01 (CE, CSN)
 const byte address[6] = "00001";
 unsigned long lastReceiveTime = 0;
 unsigned long currentTime = 0;
@@ -31,7 +27,7 @@ unsigned long currentTime = 0;
 struct Data_Package {
   byte Speed;
   byte Steer;
-  byte Lift;
+  byte Spin;
   //byte j2PotX;
   //byte j2PotY;
   //byte j2Button;
@@ -49,11 +45,11 @@ Data_Package data; //Create a variable with the above structure
 int xAxis;
 int motorSpeedLeft = 0;
 int motorSpeedRight = 0;
+int motorSpeedSpin = 0;
 
 void setup() {
   Serial.begin(9600);
   AFMS.begin();
-  LiftMotor->setSpeed(20);  // 10 rpm  stepper motor speed
   radio.begin();
   radio.openReadingPipe(0, address);
   radio.setAutoAck(false);
@@ -108,16 +104,11 @@ void loop() {
     RightMotor->run(BACKWARD);
   }
 
-// drive the lift motor
-  int val = data.Lift;
-  if ((val - previous) > 0) { //might want to try 1 and -1 to keep from being twitchy
-   LiftMotor->step(val-previous, BACKWARD, SINGLE);
-  } else if ((val - previous) < 0) {
-   // do stuff only if the first condition is false and second condition is true
-   LiftMotor->step(-(val-previous), FORWARD, SINGLE);
-  }
+// drive the blade
+  motorSpeedSpin = data.Spin;
    
-  previous = val; // remember the previous value
+  BladeMotor->setSpeed(motorSpeedSpin); 
+  LeftMotor->run(FORWARD);
     
   // Print the data in the Serial Monitor
   //Serial.print("pot1: ");
@@ -127,7 +118,7 @@ void loop() {
   Serial.print("; Steer: ");
   Serial.print(data.Steer);
   Serial.print("; Lift: ");
-  Serial.println(data.Lift); 
+  Serial.println(data.Spin); 
   Serial.print("; LeftMotorSpeed: ");
   Serial.println(motorSpeedLeft); 
 
@@ -135,8 +126,8 @@ void loop() {
 void resetData() {
   // Reset the values when there is no radio connection - Set initial default values
   data.Speed = 0;
-  data.Steer = 127;
-  data.Lift = 0;
+  data.Steer = 0;
+  data.Spin = 0;
   //data.j2PotY = 0;
   //data.j1Button = 1;
   //data.j2Button = 1;
