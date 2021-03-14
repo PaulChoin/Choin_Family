@@ -25,9 +25,9 @@ unsigned long lastReceiveTime = 0;
 unsigned long currentTime = 0;
 // Max size of this struct is 32 bytes - NRF24L01 buffer limit
 struct Data_Package {
-  byte Speed;
-  byte Steer;
   byte Spin;
+  byte Steer;
+  byte Speed;
   //byte j2PotX;
   //byte j2PotY;
   //byte j2Button;
@@ -125,9 +125,9 @@ void loop() {
 }
 void resetData() {
   // Reset the values when there is no radio connection - Set initial default values
-  data.Speed = 0;
-  data.Steer = 0;
   data.Spin = 0;
+  data.Steer = 0;
+  data.Speed = 0;
   //data.j2PotY = 0;
   //data.j1Button = 1;
   //data.j2Button = 1;
