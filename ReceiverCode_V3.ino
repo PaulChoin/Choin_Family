@@ -1,11 +1,11 @@
 /*
     DIY Arduino based RC Transmitter Project
               == Receiver Code ==
-  by Dejan Nedelkovski, www.HowToMechatronics.com
+  by Paul Choin 3/19/2021
   Library: TMRh20/RF24, https://github.com/tmrh20/RF24/
 */
 #include <SPI.h>
-#include <RF24.h>
+#include <RF24.h>Dejan Nedelkovski, www.HowToMe
 #include <nRF24L01.h>
 #include <Wire.h>
 #include <Adafruit_MotorShield.h>
@@ -43,8 +43,9 @@ struct Data_Package {
 Data_Package data; //Create a variable with the above structure
 
 int xAxis;
-int motorSpeedLeft = 0;
-int motorSpeedRight = 0;
+int yAxis;
+int motorSpeedLeft = 127;
+int motorSpeedRight = 127;
 int motorSpeedSpin = 0;
 
 void setup() {
@@ -69,47 +70,87 @@ void loop() {
   if ( currentTime - lastReceiveTime > 1000 ) { // If current time is more then 1 second since we have recived the last data, that means we have lost connection
     resetData(); // If connection is lost, reset the data. It prevents unwanted behavior, for example if a drone has a throttle up and we lose connection, it can keep flying unless we reset the values
   }
-
-//Set thrust
-  motorSpeedLeft = data.Speed;
-  motorSpeedRight = data.Speed;
   
-  LeftMotor->setSpeed(motorSpeedLeft); 
-  LeftMotor->run(FORWARD);
-
-  RightMotor->setSpeed(motorSpeedRight); 
-  RightMotor->run(FORWARD);
-
-//Adjust thrust based on steer
-  xAxis = data.Steer;
-  if (xAxis < 117) {
-    // Convert the declining X-axis readings from 0 to 110 into increasing 0 to 255 value
-    int xMapped = map(xAxis, 110, 0, 0, 255);
-    motorSpeedLeft = xMapped;
-    motorSpeedRight = xMapped;
-    LeftMotor->setSpeed(motorSpeedLeft); 
-    LeftMotor->run(BACKWARD);
-    RightMotor->setSpeed(motorSpeedRight); 
-    RightMotor->run(FORWARD);
-  }
-    
-  if (xAxis > 137) {
-    // Convert the declining X-axis readings from 137 to 255 into increasing 0 to 255 value
-    int xMapped = map(xAxis, 137, 255, 0, 255);
-    motorSpeedLeft = xMapped;
-    motorSpeedRight = xMapped;
-    LeftMotor->setSpeed(motorSpeedLeft); 
-    LeftMotor->run(FORWARD);
-    RightMotor->setSpeed(motorSpeedRight); 
-    RightMotor->run(BACKWARD);
-  }
-
 // drive the blade
   motorSpeedSpin = data.Spin;
    
   BladeMotor->setSpeed(motorSpeedSpin); 
-  LeftMotor->run(FORWARD);
+  BladeMotor->run(FORWARD);
+
+// Steer and Speed
+
+  xAxis = data.Steer;
+  yAxis = data.Speed;
+
+  // Y-axis used for forward and backward control
+  if (yAxis < 110) {
+    // Set Motor Left Motor backward
+    LeftMotor->setSpeed(motorSpeedLeft); 
+    LeftMotor->run(BACKWARD);
+ 
+    // Set Motor Right backward
+    RightMotor->setSpeed(motorSpeedRight); 
+    RightMotor->run(BACKWARD);
     
+    // Convert the declining Y-axis readings for going backward from 110 to 0 into 0 to 255 value for the PWM signal for increasing the motor speed
+    motorSpeedLeft = map(yAxis, 110, 0, 0, 255);
+    motorSpeedRight = map(yAxis, 110, 0, 0, 255);
+
+  }
+  else if (yAxis > 140) {
+    // Set Motor Left forward
+    LeftMotor->run(FORWARD);
+    // Set Motor B forward
+    RightMotor->run(FORWARD);
+    // Convert the increasing Y-axis readings for going forward from 140 to 255 into 0 to 255 value for the PWM signal for increasing the motor speed
+    motorSpeedLeft = map(yAxis, 140, 255, 0, 255);
+    motorSpeedRight = map(yAxis, 140, 255, 0, 255);
+  }
+  // If joystick stays in middle the motors are not moving
+  else {
+    motorSpeedLeft = 0;
+    motorSpeedRight = 0;
+  }
+  // X-axis used for left and right control
+  if (xAxis < 110) {
+    // Convert the declining X-axis readings from 140 to 255 into increasing 0 to 255 value
+    int xMapped = map(xAxis, 110, 0, 0, 255);
+    // Move to left - decrease left motor speed, increase right motor speed
+    motorSpeedLeft = motorSpeedLeft - xMapped;
+    motorSpeedRight = motorSpeedRight + xMapped;
+    // Confine the range from 0 to 255
+    if (motorSpeedLeft < 0) {
+      motorSpeedLeft = 0;
+    }
+    if (motorSpeedRight > 255) {
+      motorSpeedRight = 255;
+    }
+  }
+  if (xAxis > 140) {
+    // Convert the increasing X-axis readings from 110 to 0 into 0 to 255 value
+    int xMapped = map(xAxis, 140, 255, 0, 255);
+    // Move right - decrease right motor speed, increase left motor speed
+    motorSpeedLeft = motorSpeedLeft + xMapped;
+    motorSpeedRight = motorSpeedRight - xMapped;
+    // Confine the range from 0 to 255
+    if (motorSpeedLeft > 255) {
+      motorSpeedLeft = 255;
+    }
+    if (motorSpeedRight < 0) {
+      motorSpeedRight = 0;
+    }
+  }
+  // Prevent buzzing at low speeds (Adjust according to your motors. My motors couldn't start moving if PWM value was below value of 70)
+  if (motorSpeedLeft < 70) {
+    motorSpeedLeft = 0;
+  }
+  if (motorSpeedRight < 70) {
+    motorSpeedRight = 0;
+  }
+
+  LeftMotor->setSpeed(motorSpeedLeft); // Send PWM signal to motor A
+  RightMotor->setSpeed(motorSpeedRight); // Send PWM signal to motor B
+     
   // Print the data in the Serial Monitor
   //Serial.print("pot1: ");
   //Serial.print(data.pot1);
@@ -126,8 +167,8 @@ void loop() {
 void resetData() {
   // Reset the values when there is no radio connection - Set initial default values
   data.Spin = 0;
-  data.Steer = 0;
-  data.Speed = 0;
+  data.Steer = 127;
+  data.Speed = 127;
   //data.j2PotY = 0;
   //data.j1Button = 1;
   //data.j2Button = 1;
