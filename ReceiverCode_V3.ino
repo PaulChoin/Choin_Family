@@ -22,7 +22,7 @@ Adafruit_DCMotor *BladeMotor = AFMS.getMotor(2);
 bool radioNumber = 0; // set as receiver
 
 RF24 radio(18, 19);   // nRF24L01 (CE, CSN)
-const byte address[6] = "00001";
+const byte address[6] = "00001"; //The 5 digit address can be any combo of letters or numbers as long as they are the same on both xmitter and receiver. this is how you can keep your controller controlling your project!
 unsigned long lastReceiveTime = 0;
 unsigned long currentTime = 0;
 // Max size of this struct is 32 bytes - NRF24L01 buffer limit
