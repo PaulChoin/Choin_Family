@@ -1,13 +1,10 @@
-// Added This Text line to test system. LC 12/24/20
-
-/*
     DIY Arduino based RC Transmitter Project
               == Receiver Code ==
-  by Paul Choin 3/19/2021
+  by Paul Choin 4/17/2021
   Library: TMRh20/RF24, https://github.com/tmrh20/RF24/
 */
 #include <SPI.h>
-#include <RF24.h>Dejan Nedelkovski, www.HowToMe
+#include <RF24.h>
 #include <nRF24L01.h>
 #include <Wire.h>
 #include <Adafruit_MotorShield.h>
@@ -44,11 +41,13 @@ struct Data_Package {
 };
 Data_Package data; //Create a variable with the above structure
 
+// Inputs
 int xAxis;
 int yAxis;
-int motorSpeedLeft = 127;
-int motorSpeedRight = 127;
+// Initial Values
 int motorSpeedSpin = 0;
+int nMotMixL = 0;
+int nMotMixR = 0;
 
 void setup() {
   Serial.begin(9600);
@@ -81,89 +80,90 @@ void loop() {
 
 // Steer and Speed
 
+// Temp variables
+  float fPivYLimit = 32.0; // Threshold at which pivot action starts.  > value is increase range of pivot (0..127)
+  float nMotPremixL; // Motor (left)  premixed output        (-128..+127)
+  float nMotPremixR; // Motor (right) premixed output        (-128..+127)
+  int nPivSpeed;     // Pivot Speed                          (-128..+127)
+  float fPivScale;   // Balance scale b/w drive and pivot    (   0..1   )
+  
+// Read in Joystick values
   xAxis = data.Steer;
   yAxis = data.Speed;
+  
+ // Remap to -128 to 127
+  xAxis = map(xAxis, 0, 255, -128, 127);
+  yAxis = map(yAxis, 0, 255, -128, 127);
+  
+// Calculate Drive Turn output due to Joystick X input
+  if (yAxis >= 0) {
+     // Forward
+    nMotPremixL = (xAxis>=0)? 127.0 : (127.0 + xAxis);
+    nMotPremixR = (xAxis>=0)? (127.0 - xAxis) : 127.0;
+  } else {
+    // Reverse
+    nMotPremixL = (xAxis>=0)? (127.0 - xAxis) : 127.0;
+    nMotPremixR = (xAxis>=0)? 127.0 : (127.0 + xAxis);
+  }
 
-  // Y-axis used for forward and backward control
-  if (yAxis < 110) {
-    // Set Motor Left Motor backward
-    LeftMotor->setSpeed(motorSpeedLeft); 
+// Scale Drive output due to Joystick Y input (throttle)
+  nMotPremixL = nMotPremixL * yAxis/128.0;
+  nMotPremixR = nMotPremixR * yAxis/128.0;
+
+// Now calculate pivot amount
+// - Strength of pivot (nPivSpeed) based on Joystick X input
+// - Blending of pivot vs drive (fPivScale) based on Joystick Y input
+  nPivSpeed = xAxis;
+  fPivScale = (abs(yAxis)>fPivYLimit)? 0.0 : (1.0 - abs(yAxis)/fPivYLimit);
+
+// Calculate final mix of Drive and Pivot
+  nMotMixL = (1.0-fPivScale)*nMotPremixL + fPivScale*( nPivSpeed);
+  nMotMixR = (1.0-fPivScale)*nMotPremixR + fPivScale*(-nPivSpeed);
+
+// Convet to Motor PWM range and direction
+  if (nMotMixL < 0) {
+    nMotMixL = map(nMotMixL, -128, 0, 255, 0);
     LeftMotor->run(BACKWARD);
- 
-    // Set Motor Right backward
-    RightMotor->setSpeed(motorSpeedRight); 
-    RightMotor->run(BACKWARD);
-    
-    // Convert the declining Y-axis readings for going backward from 110 to 0 into 0 to 255 value for the PWM signal for increasing the motor speed
-    motorSpeedLeft = map(yAxis, 110, 0, 0, 255);
-    motorSpeedRight = map(yAxis, 110, 0, 0, 255);
-
-  }
-  else if (yAxis > 140) {
-    // Set Motor Left forward
+  } else {
+    nMotMixL = map(nMotMixL, 0, 127, 0, 255);
     LeftMotor->run(FORWARD);
-    // Set Motor B forward
+  }
+  
+  if (nMotMixR < 0) {
+    nMotMixR = map(nMotMixR, -128, 0, 255, 0);
+    RightMotor->run(BACKWARD);
+  } else {
+    nMotMixR = map(nMotMixR, 0, 127, 0, 255);
     RightMotor->run(FORWARD);
-    // Convert the increasing Y-axis readings for going forward from 140 to 255 into 0 to 255 value for the PWM signal for increasing the motor speed
-    motorSpeedLeft = map(yAxis, 140, 255, 0, 255);
-    motorSpeedRight = map(yAxis, 140, 255, 0, 255);
-  }
-  // If joystick stays in middle the motors are not moving
-  else {
-    motorSpeedLeft = 0;
-    motorSpeedRight = 0;
-  }
-  // X-axis used for left and right control
-  if (xAxis < 110) {
-    // Convert the declining X-axis readings from 140 to 255 into increasing 0 to 255 value
-    int xMapped = map(xAxis, 110, 0, 0, 255);
-    // Move to left - decrease left motor speed, increase right motor speed
-    motorSpeedLeft = motorSpeedLeft - xMapped;
-    motorSpeedRight = motorSpeedRight + xMapped;
-    // Confine the range from 0 to 255
-    if (motorSpeedLeft < 0) {
-      motorSpeedLeft = 0;
-    }
-    if (motorSpeedRight > 255) {
-      motorSpeedRight = 255;
-    }
-  }
-  if (xAxis > 140) {
-    // Convert the increasing X-axis readings from 110 to 0 into 0 to 255 value
-    int xMapped = map(xAxis, 140, 255, 0, 255);
-    // Move right - decrease right motor speed, increase left motor speed
-    motorSpeedLeft = motorSpeedLeft + xMapped;
-    motorSpeedRight = motorSpeedRight - xMapped;
-    // Confine the range from 0 to 255
-    if (motorSpeedLeft > 255) {
-      motorSpeedLeft = 255;
-    }
-    if (motorSpeedRight < 0) {
-      motorSpeedRight = 0;
-    }
-  }
-  // Prevent buzzing at low speeds (Adjust according to your motors. My motors couldn't start moving if PWM value was below value of 70)
-  if (motorSpeedLeft < 70) {
-    motorSpeedLeft = 0;
-  }
-  if (motorSpeedRight < 70) {
-    motorSpeedRight = 0;
   }
 
-  LeftMotor->setSpeed(motorSpeedLeft); // Send PWM signal to motor A
-  RightMotor->setSpeed(motorSpeedRight); // Send PWM signal to motor B
+  // Prevent buzzing at low speeds (Adjust according to your motors. My motors couldn't start moving if PWM value was below value of 20)
+  if (nMotMixL < 20) {
+    nMotMixL = 0;
+  }
+  if (nMotMixR < 20) {
+    nMotMixR = 0;
+  }
+  
+  LeftMotor->setSpeed(nMotMixL); // Send PWM signal to motor A
+  RightMotor->setSpeed(nMotMixR); // Send PWM signal to motor B
      
   // Print the data in the Serial Monitor
-  //Serial.print("pot1: ");
-  //Serial.print(data.pot1);
   Serial.print("Speed: ");
-  Serial.print(data.Speed);
+  Serial.print(yAxis);
   Serial.print("; Steer: ");
-  Serial.print(data.Steer);
-  Serial.print("; Lift: ");
+  Serial.print(xAxis);
+  Serial.print("; LeftSpeed: ");
+  Serial.print(nMotPremixL);
+  Serial.print("; RightSpeed: ");
+  Serial.print(nMotPremixR);
+  Serial.print("; LeftSpeed: ");
+  Serial.print(nMotMixL);
+  Serial.print("; RightSpeed: ");
+  Serial.print(nMotMixR);
+  Serial.print("; Blade: ");
   Serial.println(data.Spin); 
-  Serial.print("; LeftMotorSpeed: ");
-  Serial.println(motorSpeedLeft); 
+
 
 }
 void resetData() {
