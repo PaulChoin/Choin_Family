@@ -1,4 +1,5 @@
-    DIY Arduino based RC Transmitter Project
+/*    
+  DIY Arduino based RC Transmitter Project
               == Receiver Code ==
   by Paul Choin 4/17/2021
   Library: TMRh20/RF24, https://github.com/tmrh20/RF24/
